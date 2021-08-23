@@ -1,0 +1,89 @@
+[Deploy the Dasboard]
+# wget https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0/aio/deploy/recommended.yaml
+# kubectl apply -f recommended.yaml
+
+-->Output for reference, Once we run the above yaml file it will create with all required namespace, service account, service, secrets etc<--
+root@k8mas1:~/certs# kubectl apply -f recommended.yaml
+namespace/kubernetes-dashboard created
+serviceaccount/kubernetes-dashboard created
+service/kubernetes-dashboard created
+secret/kubernetes-dashboard-certs created
+secret/kubernetes-dashboard-csrf created
+secret/kubernetes-dashboard-key-holder created
+configmap/kubernetes-dashboard-settings created
+role.rbac.authorization.k8s.io/kubernetes-dashboard created
+clusterrole.rbac.authorization.k8s.io/kubernetes-dashboard created
+rolebinding.rbac.authorization.k8s.io/kubernetes-dashboard created
+clusterrolebinding.rbac.authorization.k8s.io/kubernetes-dashboard created
+deployment.apps/kubernetes-dashboard created
+service/dashboard-metrics-scraper created
+deployment.apps/dashboard-metrics-scraper created
+root@k8mas1:~/certs#
+
+[List the created Resources]
+
+# kubectl get all --namespace=kubernetes-dashboard
+
+
+[Expose the Dashboard]
+root@k8mas1:~# kubectl get service --namespace=kubernetes-dashboard
+NAME                      TYPE       CLUSTER-IP    EXTERNAL-IP PORT(S)       AGE
+dashboard-metrics-scraper ClusterIP  10.104.228.89             8000/TCP      18m
+kubernetes-dashboard      ClusterIP  10.103.220.191            443/TCP       18m
+root@k8mas1:~#
+
+-->{Edit the kubernetes-dasboard and replace the ClusterIP to NodePort so that your dashboard will be expose to access from outside.}<--
+
+# kubectl edit services --namespace=kubernetes-dashboard kubernetes-dashboard
+	
+type: ClusterIP
+      to
+type: NodePort
+
+{Now once again get the service, we can notice the type changed from ClusterIP to NodePort.}
+
+
+root@k8mas1:~# kubectl get service --namespace=kubernetes-dashboard
+NAME                      TYPE      CLUSTER-IP    EXTERNAL-IP PORT(S)       AGE
+dashboard-metrics-scraper ClusterIP 10.104.228.89             8000/TCP      19m
+kubernetes-dashboard      NodePort  10.103.220.191            443:31963/TCP 19m
+root@k8mas1:~#
+
+-->{Keep a note on the port number from the above output. To access Kubernetes dashboard the port 31963 will be used in this guide. In your setup, it may be in the range of 30000 – 32767.}<--
+
+-->{{Creating Service Account with Role Binding}}<--
+Create a "service account & cluster role", assign the service account with required roles.
+
+nano dashboard.yml
+
+Note:name can be changed as wished
+---------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admins
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: admins
+  namespace: kube-system
+------------------------------------------------------
+
+-->{Copy the above YAML code and create a file without making Syntax errors.}<--
+# kubectl apply -f dashboard.yml
+
+--> {Create Token for Kubernetes Dashboard}<--
+
+# token=$(kubectl -n kube-system get secret | grep admins | awk '{print $1}')
+# kubectl -n kube-system describe secret $token |grep token: |awk '{print $2}'
+
+
